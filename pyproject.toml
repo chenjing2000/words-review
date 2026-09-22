@@ -1,0 +1,11 @@
+[project]
+name = "words_review"
+version = "0.4.4"
+description = "A lightweight PySide6 vocabulary review application"
+requires-python = ">=3.11"
+dependencies = [
+    "PySide6>=6.7,<7",
+]
+
+[tool.uv]
+package = false
