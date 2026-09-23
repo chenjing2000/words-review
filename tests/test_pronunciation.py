@@ -7,11 +7,11 @@ from app.pronunciation import find_audio_path, load_pronunciations, pronunciatio
 
 
 class PronunciationTests(unittest.TestCase):
-    def test_pronunciation_path_uses_wordlist_stem_folder(self):
+    def test_pronunciation_path_uses_audio_json_in_wordlist_resource_folder(self):
         path = Path("/tmp/education.json")
         self.assertEqual(
             pronunciation_path(path),
-            Path("/tmp/education/pronunciation.json"),
+            Path("/tmp/education/audio.json"),
         )
 
     def test_load_existing_format_and_find_first_existing_audio(self):
@@ -37,7 +37,7 @@ class PronunciationTests(unittest.TestCase):
                     }
                 },
             }
-            (resource_dir / "pronunciation.json").write_text(
+            (resource_dir / "audio.json").write_text(
                 json.dumps(data), encoding="utf-8"
             )
 
@@ -63,10 +63,18 @@ class PronunciationTests(unittest.TestCase):
             result = find_audio_path(wordlist_path, pronunciations, "mooc", "us")
             self.assertEqual(result, audio)
 
-    def test_missing_pronunciation_file_returns_empty_dict(self):
+    def test_old_pronunciation_json_is_not_used(self):
         with tempfile.TemporaryDirectory() as temp_dir:
-            path = Path(temp_dir) / "words.json"
-            self.assertEqual(load_pronunciations(path), {})
+            folder = Path(temp_dir)
+            wordlist_path = folder / "words.json"
+            resource_dir = folder / "words"
+            resource_dir.mkdir()
+            (resource_dir / "pronunciation.json").write_text(
+                json.dumps({"schema_version": 1, "words": {"old": {}}}),
+                encoding="utf-8",
+            )
+
+            self.assertEqual(load_pronunciations(wordlist_path), {})
 
 
 if __name__ == "__main__":

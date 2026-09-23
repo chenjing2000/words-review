@@ -6,6 +6,7 @@ class WordSense:
     pos: str = ""
     english_meaning: str = ""
     chinese_meaning: str = ""
+    eid: str = ""
     example: str = ""
     example_translation: str = ""
     synonyms: list[str] = field(default_factory=list)
@@ -14,7 +15,7 @@ class WordSense:
 
 @dataclass
 class Word:
-    id: str
+    wid: str
     word: str
     phonetic: str = ""
     senses: list[WordSense] = field(default_factory=list)

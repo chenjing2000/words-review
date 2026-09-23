@@ -6,13 +6,13 @@
 
 - 启动时自动扫描默认 `wordlist/*.json`，也可以通过【文件夹】临时切换到其它 WordList 文件夹。
 - 只扫描所选文件夹直属的 `*.json`；无法按 WordList 格式完整加载的 JSON 会被跳过。
-- 每个 WordList 使用同名资源目录保存学习进度和发音资源。
+- 每个 WordList 使用同名资源目录保存学习进度、单词发音和例句发音资源。
 - 学习状态：`UNLEARNED -> UNCERTAIN -> RECOGNIZED -> MASTERED`。
 - 复习模式：全部单词、待学习、不懂、认识、熟悉。
 - 分类复习采用本轮快照队列；切换复习模式时，以当前 Word 在原 WordList 中的位置为锚点，自动给出最近的建议起始序号。切换后需点击【复习】才会进入新模式。
 - 第二行的“从第 [N] 个开始”可直接输入非负整数；N 表示当前复习模式筛选结果中的第几个，超出范围时自动限制到有效范围。
-- 【释义】使用 HTML + QTextBrowser 显示词性、英文含义、中文含义、双语例句、同义词、搭配和 Notes。
-- 音标右侧提供英音和美音按钮，从 `pronunciation.json` 中查找本地音频并播放。
+- 【释义】使用 HTML + QTextBrowser 显示词性、英文含义、中文含义、双语例句、同义词、搭配和 Notes；有对应例句音频时，例句末尾显示英音/美音小喇叭。
+- 音标右侧提供英音和美音按钮，从 `audio.json` 中查找本地音频并播放。
 - 点击【不懂】【认识】【理解】后立即保存进度并进入下一词。
 - Progress 与 AppState 使用 `QSaveFile` 原子写入。外部 WordList 文件夹不会跨程序启动自动恢复。
 - 窗口首次启动默认为当前可用屏幕宽度的 60%，默认比例 16:9；之后可自由缩放。
@@ -28,16 +28,21 @@ wordlist/
 ├── education.json
 └── education/
     ├── progress.json
-    ├── pronunciation.json
-    └── audio/
-        ├── pedagogy_uk.mp3
-        ├── pedagogy_us.mp3
+    ├── audio.json
+    ├── examples.json
+    ├── audio/
+    │   ├── pedagogy_uk.mp3
+    │   ├── pedagogy_us.mp3
+    │   └── ...
+    └── examples/
+        ├── pedagogy_e01_uk.mp3
+        ├── pedagogy_e01_us.mp3
         └── ...
 ```
 
-`progress.json` 由 Words Review 自动维护。`pronunciation.json` 和 `audio/` 由用户维护；缺少它们不会影响普通复习功能。
+`progress.json` 由 Words Review 自动维护。`audio.json` / `audio/` 保存单词发音，`examples.json` / `examples/` 保存例句发音；这些音频资源缺失时不影响普通复习功能。
 
-程序沿用音频提取工具生成的 `pronunciation.json` 格式：
+程序沿用音频提取工具生成的 `audio.json` 格式：
 
 ```json
 {
@@ -52,6 +57,37 @@ wordlist/
 ```
 
 当同一口音存在多个候选文件时，程序按顺序播放第一个实际存在的文件。
+
+例句音频通过 `eid` 精确关联。WordList 中每个有例句的 sense 使用 6 位数字字符串 `eid`（允许以 `0` 开头）：
+
+```json
+{
+  "eid": "501372",
+  "example": "Good pedagogy can improve student engagement."
+}
+```
+
+对应的 `examples.json` 原样记录同一个 6 位数字 `eid`：
+
+```json
+{
+  "schema_version": 1,
+  "words": {
+    "pedagogy": [
+      {
+        "eid": "501372",
+        "text": "Good pedagogy can improve student engagement.",
+        "uk": "examples/pedagogy_e01_uk.mp3",
+        "us": "examples/pedagogy_e01_us.mp3"
+      }
+    ]
+  }
+}
+```
+
+Words Review 只按 `eid` 精确匹配例句音频，不再按例句文本或顺序猜测。
+
+当前 WordList 仍使用 `schema_version: 1`，但字段结构已直接切换为 `wid` / `eid`；旧的 `id` 字段格式不再兼容。同一 WordList 中的 `word` 也必须唯一（忽略大小写），同一拼写的多个含义应放在同一个 Word 的 `senses` 中。
 
 ## 项目结构
 
@@ -79,6 +115,7 @@ words_review/
 │   ├── models/
 │   ├── repositories/
 │   ├── pronunciation.py
+│   ├── example_audio.py
 │   ├── review_session.py
 │   └── main_window.py
 └── tests/
@@ -101,15 +138,11 @@ uv run python main.py
 uv run python -m unittest discover -s tests -v
 ```
 
-核心复习、WordList 与 pronunciation 数据逻辑测试本身不依赖 PySide6，也可以直接运行：
-
-```bash
-python -m unittest discover -s tests -v
-```
+完整测试中包含 ProgressRepository 的 QSaveFile 持久化测试，因此建议在安装项目依赖后运行上面的 `uv run` 命令。
 
 ## 生成新的 WordList
 
-`skills/ielts-wordlist-generator/SKILL.md` 描述了 ChatGPT 应如何生成符合程序格式的 IELTS WordList。把该 Skill 与需要处理的单词列表交给 ChatGPT，即可生成可直接放入 `wordlist/` 的 JSON 文件。
+`skills/ielts-wordlist-generator/SKILL.md` 描述了 ChatGPT 应如何生成符合程序格式的 IELTS WordList。把该 Skill 与需要处理的单词列表交给 ChatGPT，即可生成可直接放入 `wordlist/` 的 JSON 文件。该 Skill 会在 WordList 的 `name` 末尾写入最终实际单词数，例如 `IELTS Band 7+ Vocabulary (223)`，并为每个有英文例句的 sense 生成唯一的 6 位数字 `eid`。Word 使用 `wid` 作为唯一标识。
 
 ## 设计原则
 
@@ -118,3 +151,7 @@ python -m unittest discover -s tests -v
 - 不使用复杂依赖注入、异步框架、复杂泛型或元编程。
 - 数据模型、文件读写、复习逻辑和 UI 分离，但不过度抽象。
 - 业务逻辑保持简单稳定，界面样式集中放在 `resources/styles/light.qss` 中维护。
+## Review navigation
+
+The `‹` and `›` buttons move to the previous or next word inside the active review-mode sequence. Navigation does not change the study status or review count.
+

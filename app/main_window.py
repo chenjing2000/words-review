@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.example_audio import load_example_audio
 from app.models.progress import ReviewMode
 from app.models.word import Word
 from app.pronunciation import find_audio_path, load_pronunciations
@@ -57,7 +58,9 @@ class MainWindow(QMainWindow):
         self.current_wordlist = None
         self.progress = None
         self.session = None
+        self.progress_locked = False
         self.pronunciations = {}
+        self.example_audio = {}
         self.uk_audio_path = None
         self.us_audio_path = None
         self._screen_signal_connected = False
@@ -88,11 +91,11 @@ class MainWindow(QMainWindow):
 
         control_grid.addWidget(QLabel("单词本："), 0, 0)
         self.wordlist_combo = QComboBox()
-        control_grid.addWidget(self.wordlist_combo, 0, 1, 1, 2)
+        control_grid.addWidget(self.wordlist_combo, 0, 1, 1, 3)
 
         self.select_folder_button = QPushButton("文件夹")
         self.select_folder_button.setFixedWidth(96)
-        control_grid.addWidget(self.select_folder_button, 0, 3)
+        control_grid.addWidget(self.select_folder_button, 0, 4)
 
         self.review_mode_combo = QComboBox()
         for text, mode in REVIEW_MODE_ITEMS:
@@ -115,11 +118,26 @@ class MainWindow(QMainWindow):
         position_widget.setMinimumWidth(position_layout.sizeHint().width())
         control_grid.addWidget(position_widget, 1, 2)
 
+        navigation_widget = QWidget()
+        navigation_layout = QHBoxLayout(navigation_widget)
+        navigation_layout.setContentsMargins(0, 0, 0, 0)
+        navigation_layout.setSpacing(4)
+
+        self.previous_button = QPushButton("‹")
+        self.previous_button.setObjectName("navigationButton")
+        self.previous_button.setFixedWidth(32)
+        self.next_button = QPushButton("›")
+        self.next_button.setObjectName("navigationButton")
+        self.next_button.setFixedWidth(32)
+        navigation_layout.addWidget(self.previous_button)
+        navigation_layout.addWidget(self.next_button)
+        control_grid.addWidget(navigation_widget, 1, 3)
+
         action_button_width = 96
         self.start_review_button = QPushButton("复习")
         self.start_review_button.setObjectName("primaryAction")
         self.start_review_button.setFixedWidth(action_button_width)
-        control_grid.addWidget(self.start_review_button, 1, 3)
+        control_grid.addWidget(self.start_review_button, 1, 4)
         control_grid.setColumnStretch(1, 1)
         root_layout.addLayout(control_grid)
 
@@ -155,10 +173,10 @@ class MainWindow(QMainWindow):
         audio_buttons_layout.setSpacing(5)
 
         self.uk_audio_button = self._create_audio_button(
-            "speaker_uk.svg", "英音", "ukAudioButton"
+            "speaker_uk.svg", "英/Br", "ukAudioButton"
         )
         self.us_audio_button = self._create_audio_button(
-            "speaker_us.svg", "美音", "usAudioButton"
+            "speaker_us.svg", "美/Am", "usAudioButton"
         )
         audio_buttons_layout.addWidget(self.uk_audio_button)
         audio_buttons_layout.addWidget(self.us_audio_button)
@@ -179,6 +197,7 @@ class MainWindow(QMainWindow):
         self.blank_detail = QWidget()
         self.detail_browser = QTextBrowser()
         self.detail_browser.setObjectName("detailBrowser")
+        self.detail_browser.setOpenLinks(False)
         self.detail_browser.setOpenExternalLinks(False)
         self.detail_stack.addWidget(self.blank_detail)
         self.detail_stack.addWidget(self.detail_browser)
@@ -208,7 +227,10 @@ class MainWindow(QMainWindow):
         self.review_mode_combo.currentIndexChanged.connect(self._on_review_mode_changed)
         self.position_edit.editingFinished.connect(self._normalize_position_input)
         self.start_review_button.clicked.connect(self._start_review)
+        self.previous_button.clicked.connect(self._move_previous)
+        self.next_button.clicked.connect(self._move_next)
         self.reveal_button.clicked.connect(self._show_definition)
+        self.detail_browser.anchorClicked.connect(self._on_detail_link_clicked)
         self.uk_audio_button.clicked.connect(lambda: self._play_audio(self.uk_audio_path))
         self.us_audio_button.clicked.connect(lambda: self._play_audio(self.us_audio_path))
         self.mastered_button.clicked.connect(self._mark_mastered)
@@ -330,12 +352,17 @@ class MainWindow(QMainWindow):
         self.current_wordlist = None
         self.progress = None
         self.session = None
+        self.progress_locked = False
         self.pronunciations = {}
+        self.example_audio = {}
         self.uk_audio_path = None
         self.us_audio_path = None
         if hasattr(self, "uk_audio_button"):
             self.uk_audio_button.setEnabled(False)
             self.us_audio_button.setEnabled(False)
+        if hasattr(self, "previous_button"):
+            self.previous_button.setEnabled(False)
+            self.next_button.setEnabled(False)
 
     def _on_wordlist_changed(self, index: int):
         if index < 0 or index >= len(self.wordlist_entries):
@@ -361,12 +388,19 @@ class MainWindow(QMainWindow):
         self.current_wordlist = wordlist
         self.progress = progress
         self.session = ReviewSession(wordlist, progress)
+        self.progress_locked = False
 
         try:
             self.pronunciations = load_pronunciations(path)
         except (OSError, ValueError) as exc:
             self.pronunciations = {}
             self.show_status(f"发音配置加载失败：{exc}", 8000)
+
+        try:
+            self.example_audio = load_example_audio(path)
+        except (OSError, ValueError) as exc:
+            self.example_audio = {}
+            self.show_status(f"例句音频配置加载失败：{exc}", 8000)
 
         self._set_review_mode_combo(self.session.mode)
         self._render_current_state()
@@ -405,6 +439,22 @@ class MainWindow(QMainWindow):
         if self.session is None or self.session.current_word is None:
             return
         self.detail_stack.setCurrentWidget(self.detail_browser)
+
+    def _move_previous(self):
+        self._move_current(self.session.move_previous if self.session else None)
+
+    def _move_next(self):
+        self._move_current(self.session.move_next if self.session else None)
+
+    def _move_current(self, action):
+        if action is None or not action():
+            return
+
+        if not self._save_current_progress(show_error=True):
+            self._reload_current_progress()
+            return
+
+        self._render_current_state()
 
     def _mark_mastered(self):
         self._mark_current(self.session.mark_mastered if self.session else None)
@@ -453,7 +503,14 @@ class MainWindow(QMainWindow):
         self.phonetic_label.setText(word.phonetic)
         self._update_audio_buttons(word)
         self._sync_position_edit_to_session()
-        self.detail_browser.setHtml(build_word_html(word))
+        self.detail_browser.setHtml(
+            build_word_html(
+                word,
+                self.example_audio,
+                QUrl.fromLocalFile(str(self.icons_dir / "speaker_uk.svg")).toString(),
+                QUrl.fromLocalFile(str(self.icons_dir / "speaker_us.svg")).toString(),
+            )
+        )
         self._format_detail_paragraphs()
         self.detail_browser.verticalScrollBar().setValue(0)
         self.detail_stack.setCurrentWidget(self.blank_detail)
@@ -489,6 +546,21 @@ class MainWindow(QMainWindow):
 
         self.uk_audio_button.setEnabled(self.uk_audio_path is not None)
         self.us_audio_button.setEnabled(self.us_audio_path is not None)
+
+    def _on_detail_link_clicked(self, url: QUrl):
+        if url.scheme() != "example-audio":
+            return
+
+        accent = url.host()
+        eid = url.path().lstrip("/")
+        if accent not in {"uk", "us"} or not eid:
+            return
+
+        item = self.example_audio.get(eid)
+        if not isinstance(item, dict):
+            return
+
+        self._play_audio(item.get(accent))
 
     def _play_audio(self, path: Path | None):
         if path is None:
@@ -555,6 +627,8 @@ class MainWindow(QMainWindow):
         if enabled:
             self._update_review_start_controls()
         else:
+            self.previous_button.setEnabled(False)
+            self.next_button.setEnabled(False)
             self._set_review_action_enabled(False)
 
     def _selected_review_mode(self) -> ReviewMode:
@@ -615,19 +689,38 @@ class MainWindow(QMainWindow):
         if self.session is None:
             self.position_edit.setEnabled(False)
             self.start_review_button.setEnabled(False)
+            self.previous_button.setEnabled(False)
+            self.next_button.setEnabled(False)
             self._set_review_action_enabled(False)
             return
 
+        if self.progress_locked:
+            self.review_mode_combo.setEnabled(False)
+            self.position_edit.setEnabled(False)
+            self.start_review_button.setEnabled(False)
+            self.previous_button.setEnabled(False)
+            self.next_button.setEnabled(False)
+            self.mastered_button.setEnabled(False)
+            self.recognized_button.setEnabled(False)
+            self.uncertain_button.setEnabled(False)
+            self.reveal_button.setEnabled(self.session.current_word is not None)
+            return
+
+        self.review_mode_combo.setEnabled(True)
         mode = self._selected_review_mode()
         has_words = self.session.mode_word_count(mode) > 0
         self.position_edit.setEnabled(has_words)
         self.start_review_button.setEnabled(has_words)
 
         active_mode = mode == self.session.mode
-        can_rate = active_mode and not self.session.completed and self.session.current_word is not None
-        self._set_review_action_enabled(can_rate)
+        can_review = active_mode and not self.session.completed and self.session.current_word is not None
+        self.previous_button.setEnabled(can_review and self.session.can_move_previous())
+        self.next_button.setEnabled(can_review and self.session.can_move_next())
+        self._set_review_action_enabled(can_review)
 
     def _save_current_progress(self, show_error: bool) -> bool:
+        if self.progress_locked:
+            return True
         if self.current_wordlist_path is None or self.progress is None:
             return True
 
@@ -645,11 +738,16 @@ class MainWindow(QMainWindow):
 
         try:
             progress = self.progress_repository.load(self.current_wordlist_path)
-        except (OSError, ValueError) as exc:
-            self.show_status(f"学习记录重新加载失败：{exc}", 8000)
-            self._set_review_action_enabled(False)
+        except (OSError, ValueError):
+            self.progress_locked = True
+            self.show_status(
+                "学习记录无法读取或保存，请检查 progress.json 或文件夹权限。",
+                8000,
+            )
+            self._update_review_start_controls()
             return
 
+        self.progress_locked = False
         self.progress = progress
         self.session = ReviewSession(self.current_wordlist, self.progress)
         self._set_review_mode_combo(self.session.mode)
@@ -737,9 +835,51 @@ class MainWindow(QMainWindow):
         event.accept()
 
 
-def build_word_html(word: Word) -> str:
+def _example_audio_links(
+    eid: str,
+    audio: dict[str, Path],
+    uk_icon_url: str,
+    us_icon_url: str,
+) -> str:
+    links = []
+
+    if "uk" in audio:
+        links.append(
+            '<a href="example-audio://uk/'
+            + html.escape(eid, quote=True)
+            + '" style="text-decoration:none;">'
+            + '<img src="'
+            + html.escape(uk_icon_url, quote=True)
+            + '" width="16" height="16" style="vertical-align:middle;" />'
+            + "</a>"
+        )
+
+    if "us" in audio:
+        links.append(
+            '<a href="example-audio://us/'
+            + html.escape(eid, quote=True)
+            + '" style="text-decoration:none;">'
+            + '<img src="'
+            + html.escape(us_icon_url, quote=True)
+            + '" width="16" height="16" style="vertical-align:middle;" />'
+            + "</a>"
+        )
+
+    if not links:
+        return ""
+
+    return ' <span style="white-space:nowrap;">' + "&nbsp;".join(links) + "</span>"
+
+
+def build_word_html(
+    word: Word,
+    example_audio: dict[str, dict[str, Path]] | None = None,
+    uk_icon_url: str = "",
+    us_icon_url: str = "",
+) -> str:
     paragraph_style = "margin:0; line-height:1.45;"
     parts = ['<div style="color:#000000;">']
+    example_audio = example_audio or {}
 
     for index, sense in enumerate(word.senses, start=1):
         pos = html.escape(sense.pos)
@@ -773,9 +913,16 @@ def build_word_html(word: Word) -> str:
             example_parts.append(html.escape(sense.example_translation))
 
         if example_parts:
+            example_text = "&nbsp;&nbsp;".join(example_parts)
+            audio = example_audio.get(sense.eid, {}) if sense.eid else {}
+            if audio and uk_icon_url and us_icon_url:
+                example_text += _example_audio_links(
+                    sense.eid, audio, uk_icon_url, us_icon_url
+                )
+
             parts.append(
                 f'<p style="{paragraph_style}"><b>Example:</b>&nbsp;&nbsp;'
-                + "&nbsp;&nbsp;".join(example_parts)
+                + example_text
                 + "</p>"
             )
 

@@ -101,6 +101,15 @@ QPushButton#primaryAction:hover {
     border-color: #0066A4;
 }
 
+QPushButton#navigationButton {
+    padding: 0px;
+}
+
+QPushButton#navigationButton:hover {
+    background: #EEF7FC;
+    border-color: #A8BFD0;
+}
+
 QPushButton#reviewUncertain:hover {
     background: #FFF2F0;
     border-color: #D7AAA5;

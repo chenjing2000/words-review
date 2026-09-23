@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
-  "name": "IELTS Sample WordList",
+  "name": "IELTS Sample WordList (3)",
   "description": "用于测试程序的示例 WordList。",
   "words": [
     {
-      "id": "address_001",
+      "wid": "address",
       "word": "address",
       "phonetic": "/əˈdres/",
       "senses": [
@@ -12,6 +12,7 @@
           "pos": "v.",
           "english_meaning": "to deal with or take action on a problem or difficult situation",
           "chinese_meaning": "处理；应对，尤指问题或困难",
+          "eid": "482731",
           "example": "Governments should address the underlying causes of educational inequality.",
           "example_translation": "政府应当解决教育不平等的根本原因。",
           "synonyms": ["tackle", "deal with", "confront"],
@@ -21,7 +22,7 @@
       "notes": "IELTS 写作中常作动词使用，表示处理或应对问题。"
     },
     {
-      "id": "substantial_001",
+      "wid": "substantial",
       "word": "substantial",
       "phonetic": "/səbˈstænʃəl/",
       "senses": [
@@ -29,6 +30,7 @@
           "pos": "adj.",
           "english_meaning": "large in amount, value, or importance",
           "chinese_meaning": "大量的；重大的；可观的",
+          "eid": "105964",
           "example": "A substantial proportion of university students now rely on digital resources for academic research.",
           "example_translation": "相当大比例的大学生现在依赖数字资源进行学术研究。",
           "synonyms": ["considerable", "significant", "sizeable"],
@@ -38,7 +40,7 @@
       "notes": "常用于描述数量、程度或影响较大。"
     },
     {
-      "id": "controversial_001",
+      "wid": "controversial",
       "word": "controversial",
       "phonetic": "/ˌkɒntrəˈvɜːʃəl/",
       "senses": [
@@ -46,6 +48,7 @@
           "pos": "adj.",
           "english_meaning": "causing disagreement or strong differences of opinion",
           "chinese_meaning": "有争议的；引起争论的",
+          "eid": "736218",
           "example": "The proposal to restrict private car use in city centres remains highly controversial.",
           "example_translation": "限制市中心私人汽车使用的提议仍然极具争议。",
           "synonyms": ["debatable", "disputed", "contentious"],

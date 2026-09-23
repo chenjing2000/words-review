@@ -51,7 +51,7 @@ class ProgressRepository:
 
         raw_words = data.get("words", {})
         if isinstance(raw_words, dict):
-            for word_id, item in raw_words.items():
+            for wid, item in raw_words.items():
                 if not isinstance(item, dict):
                     continue
 
@@ -65,7 +65,7 @@ class ProgressRepository:
                 except (ValueError, TypeError):
                     status = StudyStatus.UNLEARNED
 
-                words[str(word_id)] = WordProgress(
+                words[str(wid)] = WordProgress(
                     review_count=review_count,
                     study_status=status,
                 )
@@ -115,11 +115,11 @@ class ProgressRepository:
                 "completed": progress.review_session.completed,
             },
             "words": {
-                word_id: {
+                wid: {
                     "review_count": item.review_count,
                     "study_status": int(item.study_status),
                 }
-                for word_id, item in progress.words.items()
+                for wid, item in progress.words.items()
             },
         }
 

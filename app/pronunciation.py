@@ -7,7 +7,7 @@ def resource_folder(wordlist_path: Path) -> Path:
 
 
 def pronunciation_path(wordlist_path: Path) -> Path:
-    return resource_folder(wordlist_path) / "pronunciation.json"
+    return resource_folder(wordlist_path) / "audio.json"
 
 
 def load_pronunciations(wordlist_path: Path) -> dict[str, dict[str, list[str]]]:
@@ -24,11 +24,11 @@ def load_pronunciations(wordlist_path: Path) -> dict[str, dict[str, list[str]]]:
     if not isinstance(data, dict):
         raise ValueError("发音配置文件根节点必须是 JSON object")
     if data.get("schema_version") != 1:
-        raise ValueError(f"不支持的 pronunciation schema_version: {data.get('schema_version')}")
+        raise ValueError(f"不支持的 audio schema_version: {data.get('schema_version')}")
 
     raw_words = data.get("words")
     if not isinstance(raw_words, dict):
-        raise ValueError("pronunciation.json 缺少 words object")
+        raise ValueError("audio.json 缺少 words object")
 
     result = {}
     for word, item in raw_words.items():

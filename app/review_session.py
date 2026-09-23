@@ -119,11 +119,57 @@ class ReviewSession:
     def mark_mastered(self):
         self._mark(StudyStatus.MASTERED)
 
-    def get_word_progress(self, word_id: str) -> WordProgress:
-        item = self.progress.words.get(word_id)
+    def can_move_previous(self) -> bool:
+        if self.completed or self.current_word is None:
+            return False
+
+        state = self.progress.review_session
+        if state.mode == ReviewMode.ALL:
+            return self.progress.current_index > 0
+
+        return bool(state.indices) and state.queue_position > 0
+
+    def can_move_next(self) -> bool:
+        if self.completed or self.current_word is None:
+            return False
+
+        state = self.progress.review_session
+        if state.mode == ReviewMode.ALL:
+            return self.progress.current_index < len(self.wordlist.words) - 1
+
+        return bool(state.indices) and state.queue_position < len(state.indices) - 1
+
+    def move_previous(self) -> bool:
+        if not self.can_move_previous():
+            return False
+
+        state = self.progress.review_session
+        if state.mode == ReviewMode.ALL:
+            self.progress.current_index -= 1
+        else:
+            state.queue_position -= 1
+            self.progress.current_index = state.indices[state.queue_position]
+
+        return True
+
+    def move_next(self) -> bool:
+        if not self.can_move_next():
+            return False
+
+        state = self.progress.review_session
+        if state.mode == ReviewMode.ALL:
+            self.progress.current_index += 1
+        else:
+            state.queue_position += 1
+            self.progress.current_index = state.indices[state.queue_position]
+
+        return True
+
+    def get_word_progress(self, wid: str) -> WordProgress:
+        item = self.progress.words.get(wid)
         if item is None:
             item = WordProgress()
-            self.progress.words[word_id] = item
+            self.progress.words[wid] = item
         return item
 
     def _build_indices(self, mode: ReviewMode) -> list[int]:
@@ -131,7 +177,7 @@ class ReviewSession:
         indices = []
 
         for index, word in enumerate(self.wordlist.words):
-            item = self.progress.words.get(word.id)
+            item = self.progress.words.get(word.wid)
             status = StudyStatus.UNLEARNED if item is None else item.study_status
             if status == target:
                 indices.append(index)
@@ -168,7 +214,7 @@ class ReviewSession:
             return
 
         word = self.current_word
-        item = self.get_word_progress(word.id)
+        item = self.get_word_progress(word.wid)
         item.review_count += 1
         item.study_status = status
 

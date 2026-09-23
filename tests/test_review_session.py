@@ -5,11 +5,11 @@ from app.models.word import Word, WordList, WordSense
 from app.review_session import ReviewSession
 
 
-def make_word(word_id):
+def make_word(wid):
     return Word(
-        id=word_id,
-        word=word_id,
-        senses=[WordSense(chinese_meaning=word_id)],
+        wid=wid,
+        word=wid,
+        senses=[WordSense(chinese_meaning=wid)],
     )
 
 
@@ -70,10 +70,10 @@ class ReviewSessionTests(unittest.TestCase):
 
     def test_review_count_increases_once(self):
         self.session.start_review(ReviewMode.RECOGNIZED, 2)
-        word_id = self.session.current_word.id
-        before = self.session.get_word_progress(word_id).review_count
+        wid = self.session.current_word.wid
+        before = self.session.get_word_progress(wid).review_count
         self.session.mark_recognized()
-        after = self.session.get_word_progress(word_id).review_count
+        after = self.session.get_word_progress(wid).review_count
         self.assertEqual(after, before + 1)
 
     def test_all_mode_finishes_on_last_word(self):
@@ -82,6 +82,34 @@ class ReviewSessionTests(unittest.TestCase):
         self.assertTrue(self.session.completed)
         self.assertEqual(self.session.current_index, 7)
         self.assertEqual(self.session.current_position_number(), 8)
+
+    def test_navigation_moves_inside_filtered_snapshot(self):
+        self.session.start_review(ReviewMode.RECOGNIZED, 2)
+        self.assertTrue(self.session.move_next())
+        self.assertEqual(self.session.current_index, 6)
+        self.assertEqual(self.session.current_position_number(), 3)
+        self.assertTrue(self.session.move_previous())
+        self.assertEqual(self.session.current_index, 3)
+        self.assertEqual(self.session.current_position_number(), 2)
+
+    def test_navigation_does_not_change_learning_progress(self):
+        self.session.start_review(ReviewMode.RECOGNIZED, 2)
+        wid = self.session.current_word.wid
+        before_status = self.session.get_word_progress(wid).study_status
+        before_count = self.session.get_word_progress(wid).review_count
+        self.session.move_next()
+        self.session.move_previous()
+        item = self.session.get_word_progress(wid)
+        self.assertEqual(item.study_status, before_status)
+        self.assertEqual(item.review_count, before_count)
+
+    def test_navigation_stops_at_boundaries_without_completing(self):
+        self.session.start_review(ReviewMode.RECOGNIZED, 1)
+        self.assertFalse(self.session.move_previous())
+        self.assertFalse(self.session.completed)
+        self.session.start_review(ReviewMode.RECOGNIZED, 3)
+        self.assertFalse(self.session.move_next())
+        self.assertFalse(self.session.completed)
 
 
 if __name__ == "__main__":
