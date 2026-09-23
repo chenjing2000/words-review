@@ -199,6 +199,7 @@ class MainWindow(QMainWindow):
         self.detail_browser.setObjectName("detailBrowser")
         self.detail_browser.setOpenLinks(False)
         self.detail_browser.setOpenExternalLinks(False)
+        self.detail_browser.setContextMenuPolicy(Qt.NoContextMenu)
         self.detail_stack.addWidget(self.blank_detail)
         self.detail_stack.addWidget(self.detail_browser)
         detail_card_layout.addWidget(self.detail_stack)
@@ -550,6 +551,8 @@ class MainWindow(QMainWindow):
     def _on_detail_link_clicked(self, url: QUrl):
         if url.scheme() != "example-audio":
             return
+
+        self.detail_browser.clearFocus()
 
         accent = url.host()
         eid = url.path().lstrip("/")
