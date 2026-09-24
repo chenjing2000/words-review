@@ -10,16 +10,7 @@ class WordListRepository:
         self.folder.mkdir(parents=True, exist_ok=True)
 
     def scan(self):
-        wordlists = []
-        errors = []
-
-        for path in sorted(self.folder.glob("*.json"), key=lambda p: p.name.lower()):
-            try:
-                wordlists.append((path, self.load(path)))
-            except (OSError, ValueError, UnicodeError) as exc:
-                errors.append((path, str(exc)))
-
-        return wordlists, errors
+        return sorted(self.folder.glob("*.json"), key=lambda p: p.name.lower())
 
     def load(self, path: Path) -> WordList:
         with path.open("r", encoding="utf-8") as file:

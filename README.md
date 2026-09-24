@@ -5,13 +5,17 @@
 ## 主要功能
 
 - 启动时自动扫描默认 `wordlist/*.json`，也可以通过【文件夹】临时切换到其它 WordList 文件夹。
-- 只扫描所选文件夹直属的 `*.json`；无法按 WordList 格式完整加载的 JSON 会被跳过。
+- 目录扫描只发现所选文件夹直属的 `*.json`，下拉框显示文件名（不含 `.json`）；只有当前选中的 WordList 才会从磁盘完整加载和校验。
+- 第一行在 WordList 下拉框与【文件夹】按钮之间显示当前单词本的实际单词数量；数量由已加载 WordList 的 `len(wordlist.words)` 实时得到。
+- 切换 WordList 时会重新从磁盘加载目标 JSON、`progress.json`、`audio.json` 和 `examples.json`，不会在内存中缓存其它 WordList 的完整内容。
+- Lazy loading 下，格式错误的 `*.json` 也会先显示在下拉框中；选择时才校验。加载失败时保留当前已加载的 WordList，并在状态栏提示错误。
 - 每个 WordList 使用同名资源目录保存学习进度、单词发音和例句发音资源。
 - 学习状态：`UNLEARNED -> UNCERTAIN -> RECOGNIZED -> MASTERED`。
 - 复习模式：全部单词、待学习、不懂、认识、熟悉。
-- 分类复习采用本轮快照队列；切换复习模式时，以当前 Word 在原 WordList 中的位置为锚点，自动给出最近的建议起始序号。切换后需点击【复习】才会进入新模式。
+- 分类复习采用本轮快照队列；本轮中单词状态变化不会重建队列。主动切换复习模式时，会按最新学习状态重新筛选并建立该模式的新快照，从第 1 个单词开始；若该模式没有单词，则禁用相关复习控件。
 - 第二行的“从第 [N] 个开始”可直接输入非负整数；N 表示当前复习模式筛选结果中的第几个，超出范围时自动限制到有效范围。
 - 【释义】使用 HTML + QTextBrowser 显示词性、英文含义、中文含义、双语例句、同义词、搭配和 Notes；有对应例句音频时，例句末尾显示英音/美音小喇叭。
+- 在释义内容区选中文字后会出现圆形【+】按钮，可将规范化后的选中文字加入当前 WordList 资源目录中的 `newwords.txt`；文件不存在时自动创建，已有内容会在每次添加前重新读取并去重。
 - 音标右侧提供英音和美音按钮，从 `audio.json` 中查找本地音频并播放。
 - 点击【不懂】【认识】【理解】后立即保存进度并进入下一词。
 - Progress 与 AppState 使用 `QSaveFile` 原子写入。外部 WordList 文件夹不会跨程序启动自动恢复。
@@ -30,6 +34,7 @@ wordlist/
     ├── progress.json
     ├── audio.json
     ├── examples.json
+    ├── newwords.txt
     ├── audio/
     │   ├── pedagogy_uk.mp3
     │   ├── pedagogy_us.mp3
@@ -40,7 +45,7 @@ wordlist/
         └── ...
 ```
 
-`progress.json` 由 Words Review 自动维护。`audio.json` / `audio/` 保存单词发音，`examples.json` / `examples/` 保存例句发音；这些音频资源缺失时不影响普通复习功能。
+`progress.json` 由 Words Review 自动维护。`audio.json` / `audio/` 保存单词发音，`examples.json` / `examples/` 保存例句发音。`newwords.txt` 保存用户从释义内容区加入的生词或短语，每条独占一行；这些音频资源缺失时不影响普通复习功能。
 
 程序沿用音频提取工具生成的 `audio.json` 格式：
 
@@ -142,7 +147,7 @@ uv run python -m unittest discover -s tests -v
 
 ## 生成新的 WordList
 
-`skills/ielts-wordlist-generator/SKILL.md` 描述了 ChatGPT 应如何生成符合程序格式的 IELTS WordList。把该 Skill 与需要处理的单词列表交给 ChatGPT，即可生成可直接放入 `wordlist/` 的 JSON 文件。该 Skill 会在 WordList 的 `name` 末尾写入最终实际单词数，例如 `IELTS Band 7+ Vocabulary (223)`，并为每个有英文例句的 sense 生成唯一的 6 位数字 `eid`。Word 使用 `wid` 作为唯一标识。
+`skills/ielts-wordlist-generator/SKILL.md` 描述了 ChatGPT 应如何生成符合程序格式的 IELTS WordList。把该 Skill 与需要处理的单词列表交给 ChatGPT，即可生成可直接放入 `wordlist/` 的 JSON 文件。WordList 的 `name` 只描述词汇主题，不再写入单词数量；程序在加载后直接显示实际单词数。Skill 会为每个有英文例句的 sense 生成唯一的 6 位数字 `eid`，并要求每个 sense 的 `synonyms` 最多 5 个、允许为空且准确性优先。Word 使用 `wid` 作为唯一标识。
 
 ## 设计原则
 

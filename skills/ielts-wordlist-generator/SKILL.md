@@ -12,7 +12,7 @@ Each Word contains:
 - `word`: original English word.
 - `phonetic`: common IPA pronunciation.
 - `senses`: one or more IELTS-relevant senses.
-- `notes`: short practical usage advice when useful; otherwise `""`.
+- `notes`: optional Word-level learning notes. Keep useful usage advice brief. When the word has a clear, reliable, and memory-worthy root/etymology, `notes` may also explain the root/origin and semantic development; otherwise do not force etymology and use `""` when there is nothing useful to add.
 
 Each sense contains:
 
@@ -22,7 +22,7 @@ Each sense contains:
 - `eid`: Example ID for this English example. When `example` is non-empty, `eid` must contain exactly 6 random digits, for example `501372`. Digits may start with `0`, so always keep `eid` as a string rather than a JSON number.
 - `example`: natural IELTS-level English example sentence.
 - `example_translation`: accurate Chinese translation of the example.
-- `synonyms`: useful IELTS synonyms or near-synonyms.
+- `synonyms`: useful IELTS synonyms or near-synonyms for this specific sense. Use 0 to 5 items. When accurate, common IELTS-relevant alternatives exist, include as many useful ones as possible up to 5; accuracy is more important than quantity.
 - `collocations`: common and useful collocations.
 
 ## ID rules
@@ -40,6 +40,22 @@ Each sense contains:
 11. If a sense has no English example but has a non-empty `eid`, append a brief data warning such as `数据提示：sense 2 无例句但存在 eid。`
 12. Data warnings are appended to existing `notes`; never overwrite useful original notes.
 
+## Notes and etymology rules
+
+1. Root/etymology information belongs in the Word-level `notes` field. Do not add a separate `etymology` field and do not repeat the same etymology inside individual senses.
+2. Etymology is optional. Add it only when the origin is reasonably clear and reliable, and when it genuinely helps the learner understand or remember the modern word. Do not add etymology merely to fill `notes`.
+3. Prefer concise development chains such as: `词源：trans-（穿过）+ 拉丁语 portare（携带）→“携带到另一边”→“运送；运输”。` The useful pattern is **root/source → original meaning → semantic development → modern meaning**, not a bare list of roots.
+4. When the historical source language or form is known and useful, identify it briefly (for example Latin or Greek), but keep the explanation compact and learner-oriented rather than encyclopedic.
+5. Do not invent roots from superficial spelling, use folk etymologies as facts, or guess disputed/uncertain origins. If the origin cannot be stated with reasonable confidence, omit the etymology.
+6. Prioritize etymology for words where morphology or semantic history creates a useful memory link, such as clear prefix/root combinations, productive Latin/Greek roots, or a meaningful shift from the original sense to the modern IELTS-relevant sense. Ordinary words whose historical origin adds little learning value do not need etymology.
+7. `notes` may combine a short etymology with another genuinely useful usage note. Keep both concise. If data warnings are required by the ID rules, append them after the useful notes rather than replacing them.
+
+### Etymology note example
+
+```json
+"notes": "词源：trans-（穿过）+ 拉丁语 portare（携带）→“携带到另一边”→“运送；运输”。"
+```
+
 ## Content rules
 
 1. Prefer meanings commonly useful in IELTS reading, writing, listening, or speaking.
@@ -49,19 +65,21 @@ Each sense contains:
 5. Keep `chinese_meaning` accurate and concise.
 6. Examples should be natural and academically appropriate, not artificially complicated.
 7. `example_translation` should translate the example directly without extra explanation.
-8. Synonyms and collocations should be genuinely useful in real IELTS contexts.
+8. Synonyms and collocations should be genuinely useful in real IELTS contexts. `synonyms` may be empty, but must contain no more than 5 items. Prefer accurate, common synonyms or near-synonyms for the current sense and part of speech; when several good options exist, include as many useful ones as possible up to 5. Never add weak, rare, or mismatched alternatives merely to increase the count.
 9. Keep `notes` brief and practical.
 10. Do not generate review counts, study status, or other user-learning data.
-11. After the final `words` array is complete, append the exact number of words to the WordList `name` in parentheses. For example, if the final array contains 223 words, use `"IELTS Band 7+ Vocabulary (223)"`. Count the actual final array length, not the requested or estimated quantity, and append the count only once. If a draft name already ends with a count, replace that count with the final value instead of adding another one.
+11. Do not append the number of words to the WordList `name`, and do not add a redundant `word_count` field. Keep `name` focused on the vocabulary theme. If the user explicitly requests a target number or range of words, honor that request without encoding the count in `name`.
 12. Keep `schema_version` equal to `1`.
 13. Output valid JSON only when the user asks for a WordList data file.
 
-## Example
+## Canonical JSON structure example
+
+Use this example as the structural template for generated WordLists. Keep the field names, nesting, and data types unless another rule in this Skill explicitly permits an optional/empty value.
 
 ```json
 {
   "schema_version": 1,
-  "name": "IELTS Education Vocabulary (1)",
+  "name": "IELTS Education Vocabulary",
   "description": "雅思教育类常用词汇",
   "words": [
     {
@@ -76,8 +94,18 @@ Each sense contains:
           "eid": "482731",
           "example": "Governments should address the underlying causes of educational inequality.",
           "example_translation": "政府应当解决教育不平等的根本原因。",
-          "synonyms": ["tackle", "deal with", "confront"],
+          "synonyms": ["tackle", "deal with", "confront", "handle"],
           "collocations": ["address a problem", "address an issue", "address concerns"]
+        },
+        {
+          "pos": "n.",
+          "english_meaning": "the details of where a person lives or an organization is located",
+          "chinese_meaning": "地址；住址",
+          "eid": "105964",
+          "example": "Applicants must provide a current address on the registration form.",
+          "example_translation": "申请人必须在登记表上提供当前地址。",
+          "synonyms": [],
+          "collocations": ["home address", "postal address", "current address"]
         }
       ],
       "notes": "IELTS 写作中常作动词使用。"

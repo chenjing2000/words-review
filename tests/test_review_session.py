@@ -68,6 +68,37 @@ class ReviewSessionTests(unittest.TestCase):
         self.assertEqual(self.progress.review_session.indices, original_indices)
         self.assertEqual(self.session.current_index, 6)
 
+    def test_switching_mode_rebuilds_snapshot_from_latest_statuses(self):
+        self.session.start_review(ReviewMode.RECOGNIZED, 1)
+        self.session.mark_mastered()
+
+        found = self.session.start_review(ReviewMode.MASTERED, 1)
+
+        self.assertTrue(found)
+        self.assertEqual(self.progress.review_session.mode, ReviewMode.MASTERED)
+        self.assertEqual(self.progress.review_session.indices, [1])
+        self.assertEqual(self.progress.review_session.queue_position, 0)
+        self.assertEqual(self.session.current_index, 1)
+
+    def test_switching_back_excludes_words_moved_to_another_status(self):
+        self.session.start_review(ReviewMode.RECOGNIZED, 1)
+        self.session.mark_mastered()
+
+        found = self.session.start_review(ReviewMode.RECOGNIZED, 1)
+
+        self.assertTrue(found)
+        self.assertEqual(self.progress.review_session.indices, [3, 6])
+        self.assertEqual(self.progress.review_session.queue_position, 0)
+        self.assertEqual(self.session.current_index, 3)
+
+    def test_switching_to_empty_mode_creates_empty_completed_snapshot(self):
+        found = self.session.start_review(ReviewMode.UNCERTAIN, 1)
+
+        self.assertFalse(found)
+        self.assertEqual(self.progress.review_session.mode, ReviewMode.UNCERTAIN)
+        self.assertEqual(self.progress.review_session.indices, [])
+        self.assertTrue(self.progress.review_session.completed)
+
     def test_review_count_increases_once(self):
         self.session.start_review(ReviewMode.RECOGNIZED, 2)
         wid = self.session.current_word.wid

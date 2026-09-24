@@ -191,7 +191,7 @@ class WordListRepositoryTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             repository._parse_wordlist(data)
 
-    def test_scan_loads_only_valid_json_in_selected_folder(self):
+    def test_scan_lists_direct_json_without_loading_contents(self):
         valid_data = self._valid_data()
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -199,7 +199,7 @@ class WordListRepositoryTests(unittest.TestCase):
             (folder / "valid.json").write_text(
                 json.dumps(valid_data, ensure_ascii=False), encoding="utf-8"
             )
-            (folder / "invalid.json").write_text('{"name": "invalid"}', encoding="utf-8")
+            (folder / "invalid.json").write_text('{not valid json', encoding="utf-8")
 
             nested = folder / "nested"
             nested.mkdir()
@@ -208,11 +208,12 @@ class WordListRepositoryTests(unittest.TestCase):
             )
 
             repository = WordListRepository(folder)
-            entries, errors = repository.scan()
+            paths = repository.scan()
 
-            self.assertEqual([path.name for path, _ in entries], ["valid.json"])
-            self.assertEqual(len(errors), 1)
-            self.assertEqual(errors[0][0].name, "invalid.json")
+            self.assertEqual(
+                [path.name for path in paths],
+                ["invalid.json", "valid.json"],
+            )
 
 
 if __name__ == "__main__":

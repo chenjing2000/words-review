@@ -1,4 +1,5 @@
 import html
+import unicodedata
 from pathlib import Path
 
 from PySide6.QtCore import QSettings, QSize, Qt, QUrl
@@ -53,7 +54,6 @@ class MainWindow(QMainWindow):
         self.app_state_repository = AppStateRepository(root_dir / "data" / "app_state.json")
         self.icons_dir = root_dir / "resources" / "icons"
 
-        self.wordlist_entries = []
         self.current_wordlist_path = None
         self.current_wordlist = None
         self.progress = None
@@ -63,6 +63,7 @@ class MainWindow(QMainWindow):
         self.example_audio = {}
         self.uk_audio_path = None
         self.us_audio_path = None
+        self.selected_newword_text = ""
         self._screen_signal_connected = False
 
         self.audio_output = QAudioOutput(self)
@@ -90,12 +91,28 @@ class MainWindow(QMainWindow):
         control_grid.setVerticalSpacing(10)
 
         control_grid.addWidget(QLabel("单词本："), 0, 0)
+
+        top_controls_widget = QWidget()
+        top_controls_layout = QHBoxLayout(top_controls_widget)
+        top_controls_layout.setContentsMargins(0, 0, 0, 0)
+        top_controls_layout.setSpacing(5)
+
         self.wordlist_combo = QComboBox()
-        control_grid.addWidget(self.wordlist_combo, 0, 1, 1, 3)
+        top_controls_layout.addWidget(self.wordlist_combo, 1)
+
+        self.word_count_label = QLabel("")
+        self.word_count_label.setAlignment(Qt.AlignCenter)
+        self.word_count_label.setToolTip("单词数量")
+        word_count_width = self.fontMetrics().horizontalAdvance("999") + 12
+        self.word_count_label.setFixedWidth(word_count_width)
+        self.word_count_label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
+        top_controls_layout.addWidget(self.word_count_label)
 
         self.select_folder_button = QPushButton("文件夹")
         self.select_folder_button.setFixedWidth(96)
-        control_grid.addWidget(self.select_folder_button, 0, 4)
+        top_controls_layout.addWidget(self.select_folder_button)
+
+        control_grid.addWidget(top_controls_widget, 0, 1, 1, 4)
 
         self.review_mode_combo = QComboBox()
         for text, mode in REVIEW_MODE_ITEMS:
@@ -200,6 +217,18 @@ class MainWindow(QMainWindow):
         self.detail_browser.setOpenLinks(False)
         self.detail_browser.setOpenExternalLinks(False)
         self.detail_browser.setContextMenuPolicy(Qt.NoContextMenu)
+
+        self.newword_button = QToolButton(self.detail_browser.viewport())
+        self.newword_button.setToolTip("添加到生词本")
+        self.newword_button.setFocusPolicy(Qt.NoFocus)
+        self.newword_button.setIcon(QIcon(str(self.icons_dir / "add_newword.svg")))
+        self.newword_button.setIconSize(QSize(16, 16))
+        self.newword_button.setFixedSize(18, 18)
+        self.newword_button.setStyleSheet(
+            "QToolButton { border:none; background:transparent; padding:0; }"
+        )
+        self.newword_button.hide()
+
         self.detail_stack.addWidget(self.blank_detail)
         self.detail_stack.addWidget(self.detail_browser)
         detail_card_layout.addWidget(self.detail_stack)
@@ -232,6 +261,8 @@ class MainWindow(QMainWindow):
         self.next_button.clicked.connect(self._move_next)
         self.reveal_button.clicked.connect(self._show_definition)
         self.detail_browser.anchorClicked.connect(self._on_detail_link_clicked)
+        self.detail_browser.selectionChanged.connect(self._on_detail_selection_changed)
+        self.newword_button.clicked.connect(self._add_selected_newword)
         self.uk_audio_button.clicked.connect(lambda: self._play_audio(self.uk_audio_path))
         self.us_audio_button.clicked.connect(lambda: self._play_audio(self.us_audio_path))
         self.mastered_button.clicked.connect(self._mark_mastered)
@@ -269,36 +300,42 @@ class MainWindow(QMainWindow):
         self.statusBar().setVisible(bool(message))
 
     def _load_wordlists(self):
-        entries, errors = self.wordlist_repository.scan()
-        self.wordlist_entries = entries
-        self._populate_wordlist_combo()
+        paths = self.wordlist_repository.scan()
+        self._populate_wordlist_combo(paths)
 
-        if errors:
-            self.show_status(f"{len(errors)} 个 WordList 加载失败")
-
-        if not entries:
-            self._show_no_wordlist("默认 wordlist 文件夹中没有有效的 WordList")
+        if not paths:
+            self._show_no_wordlist("默认 wordlist 文件夹中没有 JSON 单词本")
             return
 
         last_name = self.app_state_repository.load_last_wordlist()
-        index = 0
+        preferred_index = 0
         if last_name:
-            for i, (path, _) in enumerate(entries):
+            for i, path in enumerate(paths):
                 if path.name == last_name:
-                    index = i
+                    preferred_index = i
                     break
 
-        self.wordlist_combo.blockSignals(True)
-        self.wordlist_combo.setCurrentIndex(index)
-        self.wordlist_combo.blockSignals(False)
-        if not self._activate_wordlist(index):
-            self._show_progress_load_error()
+        indices = [preferred_index] + [
+            i for i in range(len(paths)) if i != preferred_index
+        ]
+        for index in indices:
+            if self._activate_wordlist(index):
+                self.wordlist_combo.blockSignals(True)
+                self.wordlist_combo.setCurrentIndex(index)
+                self.wordlist_combo.blockSignals(False)
+                return
 
-    def _populate_wordlist_combo(self):
+        self._show_no_wordlist("默认 wordlist 文件夹中没有可用的 WordList")
+        self.wordlist_combo.setEnabled(True)
+        self.wordlist_combo.blockSignals(True)
+        self.wordlist_combo.setCurrentIndex(-1)
+        self.wordlist_combo.blockSignals(False)
+
+    def _populate_wordlist_combo(self, paths):
         self.wordlist_combo.blockSignals(True)
         self.wordlist_combo.clear()
-        for path, wordlist in self.wordlist_entries:
-            self.wordlist_combo.addItem(wordlist.name, str(path))
+        for path in paths:
+            self.wordlist_combo.addItem(path.stem, str(path))
         self.wordlist_combo.blockSignals(False)
 
     def _choose_wordlist_folder(self):
@@ -317,40 +354,40 @@ class MainWindow(QMainWindow):
         selected_folder = Path(folder).resolve()
         try:
             repository = WordListRepository(selected_folder)
-            entries, errors = repository.scan()
+            paths = repository.scan()
         except OSError as exc:
             self.show_status(f"无法读取所选文件夹：{exc}", 8000)
             return
 
         self.current_wordlist_folder = selected_folder
         self.wordlist_repository = repository
-        self.wordlist_entries = entries
         self._reset_current_wordlist()
-        self._populate_wordlist_combo()
+        self._populate_wordlist_combo(paths)
 
-        if not entries:
-            self._show_no_wordlist("所选文件夹中没有有效的 WordList")
+        if not paths:
+            self._show_no_wordlist("所选文件夹中没有 JSON 单词本")
             return
 
+        for index in range(len(paths)):
+            if self._activate_wordlist(index):
+                self.wordlist_combo.blockSignals(True)
+                self.wordlist_combo.setCurrentIndex(index)
+                self.wordlist_combo.blockSignals(False)
+                self.show_status(f"已发现 {len(paths)} 个 WordList 文件")
+                return
+
+        self._show_no_wordlist("所选文件夹中没有可用的 WordList")
+        self.wordlist_combo.setEnabled(True)
         self.wordlist_combo.blockSignals(True)
-        self.wordlist_combo.setCurrentIndex(0)
+        self.wordlist_combo.setCurrentIndex(-1)
         self.wordlist_combo.blockSignals(False)
-
-        if not self._activate_wordlist(0):
-            self._show_progress_load_error()
-            return
-
-        if errors:
-            self.show_status(
-                f"已加载 {len(entries)} 个 WordList，跳过 {len(errors)} 个无效 JSON 文件"
-            )
-        else:
-            self.show_status(f"已加载 {len(entries)} 个 WordList")
 
     def _reset_current_wordlist(self):
         self.audio_player.stop()
         self.current_wordlist_path = None
         self.current_wordlist = None
+        if hasattr(self, "word_count_label"):
+            self.word_count_label.setText("")
         self.progress = None
         self.session = None
         self.progress_locked = False
@@ -358,6 +395,9 @@ class MainWindow(QMainWindow):
         self.example_audio = {}
         self.uk_audio_path = None
         self.us_audio_path = None
+        self.selected_newword_text = ""
+        if hasattr(self, "newword_button"):
+            self.newword_button.hide()
         if hasattr(self, "uk_audio_button"):
             self.uk_audio_button.setEnabled(False)
             self.us_audio_button.setEnabled(False)
@@ -366,7 +406,7 @@ class MainWindow(QMainWindow):
             self.next_button.setEnabled(False)
 
     def _on_wordlist_changed(self, index: int):
-        if index < 0 or index >= len(self.wordlist_entries):
+        if index < 0 or index >= self.wordlist_combo.count():
             return
 
         if self.current_wordlist_path is not None:
@@ -375,10 +415,25 @@ class MainWindow(QMainWindow):
                 return
 
         if not self._activate_wordlist(index):
-            self._restore_combo_to_current_wordlist()
+            if self.current_wordlist_path is not None:
+                self._restore_combo_to_current_wordlist()
+            else:
+                self.wordlist_combo.blockSignals(True)
+                self.wordlist_combo.setCurrentIndex(-1)
+                self.wordlist_combo.blockSignals(False)
 
     def _activate_wordlist(self, index: int) -> bool:
-        path, wordlist = self.wordlist_entries[index]
+        path_text = self.wordlist_combo.itemData(index)
+        if not path_text:
+            return False
+        path = Path(path_text)
+
+        try:
+            wordlist = self.wordlist_repository.load(path)
+        except (OSError, ValueError, UnicodeError) as exc:
+            self.show_status(f"WordList 加载失败：{path.name}：{exc}", 8000)
+            return False
+
         try:
             progress = self.progress_repository.load(path)
         except (OSError, ValueError) as exc:
@@ -387,6 +442,7 @@ class MainWindow(QMainWindow):
 
         self.current_wordlist_path = path
         self.current_wordlist = wordlist
+        self.word_count_label.setText(str(len(wordlist.words)))
         self.progress = progress
         self.session = ReviewSession(wordlist, progress)
         self.progress_locked = False
@@ -482,6 +538,7 @@ class MainWindow(QMainWindow):
         if self.session is None:
             return
 
+        self._hide_newword_button()
         self.audio_player.stop()
 
         if self.session.completed:
@@ -565,6 +622,114 @@ class MainWindow(QMainWindow):
 
         self._play_audio(item.get(accent))
 
+    def _normalize_newword_text(self, text: str) -> str:
+        text = " ".join(text.split()).lower()
+        if not text:
+            return ""
+
+        chars = []
+        for index, char in enumerate(text):
+            if unicodedata.category(char).startswith("P"):
+                previous_is_word = index > 0 and text[index - 1].isalnum()
+                next_is_word = index + 1 < len(text) and text[index + 1].isalnum()
+                if char in {"-", "'", "’"} and previous_is_word and next_is_word:
+                    chars.append(char)
+                else:
+                    chars.append(" ")
+            else:
+                chars.append(char)
+
+        return " ".join("".join(chars).split())
+
+    def _on_detail_selection_changed(self):
+        cursor = self.detail_browser.textCursor()
+        if not cursor.hasSelection():
+            self._hide_newword_button()
+            return
+
+        text = self._normalize_newword_text(cursor.selectedText())
+        if not text:
+            self._hide_newword_button()
+            return
+
+        self.selected_newword_text = text
+
+        end_position = cursor.selectionEnd()
+        end_cursor = QTextCursor(cursor)
+        end_cursor.setPosition(end_position)
+        end_rect = self.detail_browser.cursorRect(end_cursor)
+
+        x_anchor = end_rect.right()
+        y_anchor = end_rect.bottom()
+
+        # At a soft-wrap boundary, selectionEnd() can belong to the next visual
+        # line even though the last selected character is still on the line above.
+        # In that case, anchor the button to the last selected character instead.
+        if end_position > cursor.selectionStart():
+            previous_cursor = QTextCursor(cursor)
+            previous_cursor.setPosition(end_position - 1)
+            previous_rect = self.detail_browser.cursorRect(previous_cursor)
+            if end_rect.top() > previous_rect.top():
+                last_char = self.detail_browser.document().characterAt(end_position - 1)
+                char_width = self.detail_browser.fontMetrics().horizontalAdvance(last_char)
+                x_anchor = previous_rect.left() + max(1, char_width)
+                y_anchor = previous_rect.bottom()
+
+        viewport = self.detail_browser.viewport()
+        x = min(x_anchor + 4, max(0, viewport.width() - self.newword_button.width()))
+        y = min(y_anchor + 3, max(0, viewport.height() - self.newword_button.height()))
+        self.newword_button.move(max(0, x), max(0, y))
+        self.newword_button.raise_()
+        self.newword_button.show()
+
+    def _hide_newword_button(self):
+        self.selected_newword_text = ""
+        self.newword_button.hide()
+
+    def _add_selected_newword(self):
+        text = self.selected_newword_text
+        if not text or self.current_wordlist_path is None:
+            self._hide_newword_button()
+            return
+
+        self.newword_button.hide()
+        cursor = self.detail_browser.textCursor()
+        cursor.clearSelection()
+        self.detail_browser.setTextCursor(cursor)
+        self.selected_newword_text = ""
+
+        newwords_path = (
+            self.current_wordlist_path.parent
+            / self.current_wordlist_path.stem
+            / "newwords.txt"
+        )
+
+        try:
+            newwords_path.parent.mkdir(parents=True, exist_ok=True)
+            if newwords_path.exists():
+                existing_text = newwords_path.read_text(encoding="utf-8-sig")
+            else:
+                existing_text = ""
+
+            existing = {
+                normalized
+                for line in existing_text.splitlines()
+                if (normalized := self._normalize_newword_text(line))
+            }
+
+            if text in existing:
+                self.show_status(f"已存在：{text}")
+                return
+
+            with newwords_path.open("a", encoding="utf-8") as file:
+                if existing_text and not existing_text.endswith(("\n", "\r")):
+                    file.write("\n")
+                file.write(text + "\n")
+
+            self.show_status(f"已添加：{text}")
+        except (OSError, UnicodeError) as exc:
+            self.show_status(f"生词本保存失败：{exc}", 8000)
+
     def _play_audio(self, path: Path | None):
         if path is None:
             return
@@ -582,14 +747,15 @@ class MainWindow(QMainWindow):
             self.show_status(f"音频播放失败：{error_string}")
 
     def _show_empty_review_mode(self):
-        mode_text = self.review_mode_combo.currentText()
+        self._hide_newword_button()
+        self.audio_player.stop()
         self._set_word_label_style(is_word=False)
-        self.word_label.setText(f"当前没有“{mode_text}”状态的单词")
+        self.word_label.setText("")
         self.phonetic_label.setText("")
         self._update_audio_buttons(None)
         self.detail_stack.setCurrentWidget(self.blank_detail)
         self.detail_browser.clear()
-        self.position_edit.setText("0")
+        self.position_edit.setText("1")
         self._update_review_start_controls()
         self._set_review_action_enabled(False)
 
@@ -604,17 +770,6 @@ class MainWindow(QMainWindow):
         self.detail_stack.setCurrentWidget(self.blank_detail)
         self.detail_browser.clear()
         self._set_learning_controls_enabled(False)
-
-    def _show_progress_load_error(self):
-        self._set_word_label_style(is_word=False)
-        self.word_label.setText("学习记录加载失败")
-        self.phonetic_label.setText("")
-        self._update_audio_buttons(None)
-        self.position_edit.setText("0")
-        self.detail_stack.setCurrentWidget(self.blank_detail)
-        self.detail_browser.clear()
-        self._set_learning_controls_enabled(False)
-        self.wordlist_combo.setEnabled(True)
 
     def _set_review_action_enabled(self, enabled: bool):
         self.reveal_button.setEnabled(enabled)
@@ -650,9 +805,17 @@ class MainWindow(QMainWindow):
             return
 
         mode = self._selected_review_mode()
-        number = self.session.suggested_start_number(mode)
-        self.position_edit.setText(str(number))
-        self._update_review_start_controls()
+        self.position_edit.setText("1")
+        found = self.session.start_review(mode, 1)
+
+        if not self._save_current_progress(show_error=True):
+            self._reload_current_progress()
+            return
+
+        if found:
+            self._render_current_state()
+        else:
+            self._show_empty_review_mode()
 
     def _normalize_position_input(self) -> int:
         if self.session is None:
@@ -760,12 +923,11 @@ class MainWindow(QMainWindow):
         if self.current_wordlist_path is None:
             return
 
-        for i, (path, _) in enumerate(self.wordlist_entries):
-            if path == self.current_wordlist_path:
-                self.wordlist_combo.blockSignals(True)
-                self.wordlist_combo.setCurrentIndex(i)
-                self.wordlist_combo.blockSignals(False)
-                break
+        index = self.wordlist_combo.findData(str(self.current_wordlist_path))
+        if index >= 0:
+            self.wordlist_combo.blockSignals(True)
+            self.wordlist_combo.setCurrentIndex(index)
+            self.wordlist_combo.blockSignals(False)
 
     def _apply_initial_window_geometry(self):
         screen = QGuiApplication.primaryScreen()

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "name": "IELTS Sample WordList (3)",
+  "name": "IELTS Sample WordList",
   "description": "用于测试程序的示例 WordList。",
   "words": [
     {
@@ -15,8 +15,16 @@
           "eid": "482731",
           "example": "Governments should address the underlying causes of educational inequality.",
           "example_translation": "政府应当解决教育不平等的根本原因。",
-          "synonyms": ["tackle", "deal with", "confront"],
-          "collocations": ["address a problem", "address an issue", "address concerns"]
+          "synonyms": [
+            "tackle",
+            "deal with",
+            "confront"
+          ],
+          "collocations": [
+            "address a problem",
+            "address an issue",
+            "address concerns"
+          ]
         }
       ],
       "notes": "IELTS 写作中常作动词使用，表示处理或应对问题。"
@@ -33,8 +41,16 @@
           "eid": "105964",
           "example": "A substantial proportion of university students now rely on digital resources for academic research.",
           "example_translation": "相当大比例的大学生现在依赖数字资源进行学术研究。",
-          "synonyms": ["considerable", "significant", "sizeable"],
-          "collocations": ["a substantial increase", "substantial evidence", "a substantial amount"]
+          "synonyms": [
+            "considerable",
+            "significant",
+            "sizeable"
+          ],
+          "collocations": [
+            "a substantial increase",
+            "substantial evidence",
+            "a substantial amount"
+          ]
         }
       ],
       "notes": "常用于描述数量、程度或影响较大。"
@@ -51,8 +67,16 @@
           "eid": "736218",
           "example": "The proposal to restrict private car use in city centres remains highly controversial.",
           "example_translation": "限制市中心私人汽车使用的提议仍然极具争议。",
-          "synonyms": ["debatable", "disputed", "contentious"],
-          "collocations": ["a controversial issue", "a controversial proposal", "highly controversial"]
+          "synonyms": [
+            "debatable",
+            "disputed",
+            "contentious"
+          ],
+          "collocations": [
+            "a controversial issue",
+            "a controversial proposal",
+            "highly controversial"
+          ]
         }
       ],
       "notes": "适合用于 IELTS 写作中描述存在明显分歧的问题、政策或观点。"
