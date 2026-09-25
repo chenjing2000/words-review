@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.11"
 
 [[package]]
@@ -64,11 +64,11 @@ wheels = [
 
 [[package]]
 name = "words-review"
-version = "0.1.0"
+version = "0.6.1"
 source = { virtual = "." }
 dependencies = [
     { name = "pyside6" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "pyside6", specifier = ">=6.11.2" }]
+requires-dist = [{ name = "pyside6", specifier = ">=6.7,<7" }]

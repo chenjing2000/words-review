@@ -95,7 +95,7 @@ class MainWindow(QMainWindow):
         top_controls_widget = QWidget()
         top_controls_layout = QHBoxLayout(top_controls_widget)
         top_controls_layout.setContentsMargins(0, 0, 0, 0)
-        top_controls_layout.setSpacing(5)
+        top_controls_layout.setSpacing(10)
 
         self.wordlist_combo = QComboBox()
         top_controls_layout.addWidget(self.wordlist_combo, 1)

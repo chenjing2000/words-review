@@ -1,6 +1,6 @@
 [project]
 name = "words_review"
-version = "0.6.1"
+version = "0.6.2"
 description = "A lightweight PySide6 vocabulary review application"
 requires-python = ">=3.11"
 dependencies = [
